@@ -89,6 +89,11 @@ def resolve_agent_alias(name: str | None) -> str | None:
 # The config dict contains: agent_name, cicd_runner, is_adk, is_adk_live, is_a2a
 # =============================================================================
 
+# Helper: exclude service.tf only for adk_live + agent_engine combination
+_exclude_adk_live_agent_engine = lambda c: not (
+    c.get("agent_name") == "adk_live" and c.get("deployment_target") == "agent_engine"
+)
+
 CONDITIONAL_FILES = {
     # CI/CD runner conditional files (base_template)
     ".cloudbuild": lambda c: c.get("cicd_runner") == "google_cloud_build",
@@ -108,10 +113,8 @@ CONDITIONAL_FILES = {
     # Agent Engine deployment target conditionals
     "{agent_directory}/app_utils/expose_app.py": lambda c: c.get("is_adk_live"),
     "tests/helpers.py": lambda c: c.get("is_a2a"),
-    "deployment/terraform/service.tf": (lambda c: c.get("agent_name") != "adk_live"),
-    "deployment/terraform/dev/service.tf": (
-        lambda c: c.get("agent_name") != "adk_live"
-    ),
+    "deployment/terraform/service.tf": _exclude_adk_live_agent_engine,
+    "deployment/terraform/dev/service.tf": _exclude_adk_live_agent_engine,
 }
 
 
@@ -1627,6 +1630,7 @@ def process_template(
             # Apply conditional file logic (Windows-compatible replacement for Jinja2 filenames)
             conditional_config = {
                 "agent_name": agent_name,
+                "deployment_target": deployment_target,
                 "cicd_runner": cicd_runner or "google_cloud_build",
                 "is_adk": "adk" in tags,
                 "is_adk_live": "adk_live" in tags,
