@@ -61,9 +61,15 @@ local-backend:
 # ==============================================================================
 
 # Deploy the agent remotely
-# Usage: make deploy [IAP=true] [PORT=8080] - Set IAP=true to enable Identity-Aware Proxy, PORT to specify container port
+# Usage: make deploy [IAP=true] [PORT=8080]
+#   IAP=true  - Enable Identity-Aware Proxy for authenticated access (required for Web UI)
+#   PORT=8080 - Specify container port
+#
+# The deployed app includes Web UI at /ui/ - access requires IAP authentication
+# Example: make deploy IAP=true
 deploy:
 	PROJECT_ID=$$(gcloud config get-value project) && \
+	PROJECT_NUMBER=$$(gcloud projects describe $$PROJECT_ID --format="value(projectNumber)") && \
 	gcloud beta run deploy {{cookiecutter.project_name}} \
 		--source . \
 		--memory "4Gi" \
@@ -72,7 +78,7 @@ deploy:
 		--no-allow-unauthenticated \
 		--no-cpu-throttling \
 		--labels "created-by=adk" \
-		--update-env-vars "GOOGLE_CLOUD_PROJECT=$$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=True,COMMIT_SHA=$(shell git rev-parse HEAD)" \
+		--update-env-vars "GOOGLE_CLOUD_PROJECT=$$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=True,APP_URL=https://{{cookiecutter.project_name}}-$$PROJECT_NUMBER.us-central1.run.app" \
 		$(if $(IAP),--iap) \
 		$(if $(PORT),--port=$(PORT))
 
@@ -194,7 +200,7 @@ build-inspector-if-needed:
 register-gemini-enterprise:
 	@PROJECT_ID=$$(gcloud config get-value project 2>/dev/null) && \
 	PROJECT_NUMBER=$$(gcloud projects describe $$PROJECT_ID --format="value(projectNumber)" 2>/dev/null) && \
-	uvx agent-starter-pack@{{cookiecutter.asp_version}} register-gemini-enterprise \
+	uvx agent-starter-pack@{{ cookiecutter.package_version }} register-gemini-enterprise \
 		--agent-card-url="https://{{cookiecutter.project_name}}-$$PROJECT_NUMBER.us-central1.run.app/.well-known/agent-card.json" \
 		--deployment-target="cloud_run" \
 		--project-number="$$PROJECT_NUMBER"

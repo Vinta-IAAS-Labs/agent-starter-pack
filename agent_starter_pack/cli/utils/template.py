@@ -56,6 +56,8 @@ from .remote_template import (
 AGENT_ALIASES: dict[str, str] = {
     "adk_base": "adk",
     "langgraph_base": "langgraph",
+    "custom": "langgraph",
+    "custom_a2a": "langgraph",
     "adk_a2a_base": "adk_a2a",
     "adk_base_go": "adk_go",
 }
@@ -89,6 +91,11 @@ def resolve_agent_alias(name: str | None) -> str | None:
 # The config dict contains: agent_name, cicd_runner, is_adk, is_adk_live, is_a2a
 # =============================================================================
 
+# Helper: exclude service.tf only for adk_live + agent_engine combination
+_exclude_adk_live_agent_engine = lambda c: not (
+    c.get("agent_name") == "adk_live" and c.get("deployment_target") == "agent_engine"
+)
+
 CONDITIONAL_FILES = {
     # CI/CD runner conditional files (base_template)
     ".cloudbuild": lambda c: c.get("cicd_runner") == "google_cloud_build",
@@ -108,10 +115,8 @@ CONDITIONAL_FILES = {
     # Agent Engine deployment target conditionals
     "{agent_directory}/app_utils/expose_app.py": lambda c: c.get("is_adk_live"),
     "tests/helpers.py": lambda c: c.get("is_a2a"),
-    "deployment/terraform/service.tf": (lambda c: c.get("agent_name") != "adk_live"),
-    "deployment/terraform/dev/service.tf": (
-        lambda c: c.get("agent_name") != "adk_live"
-    ),
+    "deployment/terraform/service.tf": _exclude_adk_live_agent_engine,
+    "deployment/terraform/dev/service.tf": _exclude_adk_live_agent_engine,
 }
 
 
@@ -399,10 +404,12 @@ def get_available_agents(deployment_target: str | None = None) -> dict:
                         framework = "other"
 
                     description = config.get("description", "No description available")
+                    display_name = config.get("display_name", agent_name)
                     priority = PRIORITY_ORDER.get(agent_name, 100)
 
                     agent_info = {
                         "name": agent_name,
+                        "display_name": display_name,
                         "description": description,
                         "language": language,
                         "framework": framework,
@@ -1627,6 +1634,7 @@ def process_template(
             # Apply conditional file logic (Windows-compatible replacement for Jinja2 filenames)
             conditional_config = {
                 "agent_name": agent_name,
+                "deployment_target": deployment_target,
                 "cicd_runner": cicd_runner or "google_cloud_build",
                 "is_adk": "adk" in tags,
                 "is_adk_live": "adk_live" in tags,
